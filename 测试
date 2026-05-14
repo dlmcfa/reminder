@@ -1,0 +1,197 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+<title>小鹿爱学 · 智能提醒系统</title>
+<script src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
+<script src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
+<script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+<style>
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body { background: #e0e7ff; font-family: 'PingFang SC','Hiragino Sans GB','Microsoft YaHei',sans-serif; }
+  ::-webkit-scrollbar { width: 0; }
+  @keyframes pop     { 0%{transform:scale(1)} 40%{transform:scale(1.35)} 70%{transform:scale(0.9)} 100%{transform:scale(1)} }
+  @keyframes floatY  { 0%,100%{transform:translateY(0)} 50%{transform:translateY(-9px)} }
+  @keyframes droop   { 0%,100%{transform:translateY(0) rotate(0deg)} 50%{transform:translateY(4px) rotate(-4deg)} }
+  @keyframes shake   { 0%,100%{transform:translateX(0)} 25%{transform:translateX(-5px)} 75%{transform:translateX(5px)} }
+  @keyframes slideUp { from{opacity:0;transform:translateY(16px)} to{opacity:1;transform:none} }
+  @keyframes toastIn { from{opacity:0;transform:translateY(-60px) scale(0.92)} to{opacity:1;transform:none} }
+</style>
+</head>
+<body>
+<div id="root"></div>
+<script type="text/babel">
+const { useState, useEffect, useRef } = React;
+const THEMES = {
+  happy:   { label:"开心",  grad:"linear-gradient(135deg,#34d399,#059669)", bg:"linear-gradient(160deg,#d1fae5,#a7f3d0,#6ee7b7)", accent:"#059669", light:"#ECFDF5" },
+  normal:  { label:"普通",  grad:"linear-gradient(135deg,#818cf8,#4f46e5)", bg:"linear-gradient(160deg,#e0e7ff,#c7d2fe,#a5b4fc)", accent:"#4f46e5", light:"#EEF2FF" },
+  worried: { label:"担心",  grad:"linear-gradient(135deg,#fbbf24,#d97706)", bg:"linear-gradient(160deg,#fef9c3,#fde68a,#fcd34d)", accent:"#d97706", light:"#FFFBEB" },
+  sad:     { label:"失落",  grad:"linear-gradient(135deg,#f472b6,#db2777)", bg:"linear-gradient(160deg,#fce7f3,#fbcfe8,#f9a8d4)", accent:"#db2777", light:"#FDF2F8" },
+};
+function DeerFace({ state, size=64 }) {
+  const faces = {
+    happy: (<svg width={size} height={size} viewBox="0 0 64 64"><ellipse cx="32" cy="38" rx="22" ry="20" fill="#f5c07a"/><ellipse cx="22" cy="20" rx="7" ry="12" fill="#f5c07a"/><ellipse cx="42" cy="20" rx="7" ry="12" fill="#f5c07a"/><ellipse cx="22" cy="16" rx="4" ry="7" fill="#e8956d"/><ellipse cx="42" cy="16" rx="4" ry="7" fill="#e8956d"/><circle cx="25" cy="36" r="4" fill="#3d2b1f"/><circle cx="39" cy="36" r="4" fill="#3d2b1f"/><circle cx="26.5" cy="34.5" r="1.5" fill="white"/><circle cx="40.5" cy="34.5" r="1.5" fill="white"/><ellipse cx="32" cy="44" rx="6" ry="4" fill="#e8956d"/><path d="M26 42 Q32 50 38 42" fill="none" stroke="#c1440e" strokeWidth="2" strokeLinecap="round"/><ellipse cx="22" cy="40" rx="5" ry="3" fill="#f9a8d4" opacity="0.6"/><ellipse cx="42" cy="40" rx="5" ry="3" fill="#f9a8d4" opacity="0.6"/></svg>),
+    normal: (<svg width={size} height={size} viewBox="0 0 64 64"><ellipse cx="32" cy="38" rx="22" ry="20" fill="#f5c07a"/><ellipse cx="22" cy="20" rx="7" ry="12" fill="#f5c07a"/><ellipse cx="42" cy="20" rx="7" ry="12" fill="#f5c07a"/><ellipse cx="22" cy="16" rx="4" ry="7" fill="#e8956d"/><ellipse cx="42" cy="16" rx="4" ry="7" fill="#e8956d"/><circle cx="25" cy="36" r="4" fill="#3d2b1f"/><circle cx="39" cy="36" r="4" fill="#3d2b1f"/><circle cx="26.5" cy="34.5" r="1.5" fill="white"/><circle cx="40.5" cy="34.5" r="1.5" fill="white"/><ellipse cx="32" cy="44" rx="6" ry="4" fill="#e8956d"/><path d="M27 45 Q32 46 37 45" fill="none" stroke="#c1440e" strokeWidth="2" strokeLinecap="round"/></svg>),
+    worried: (<svg width={size} height={size} viewBox="0 0 64 64"><ellipse cx="32" cy="38" rx="22" ry="20" fill="#f5c07a"/><ellipse cx="22" cy="20" rx="7" ry="12" fill="#f5c07a"/><ellipse cx="42" cy="20" rx="7" ry="12" fill="#f5c07a"/><ellipse cx="22" cy="16" rx="4" ry="7" fill="#e8956d"/><ellipse cx="42" cy="16" rx="4" ry="7" fill="#e8956d"/><circle cx="25" cy="37" r="4" fill="#3d2b1f"/><circle cx="39" cy="37" r="4" fill="#3d2b1f"/><circle cx="26.5" cy="35.5" r="1.5" fill="white"/><circle cx="40.5" cy="35.5" r="1.5" fill="white"/><ellipse cx="32" cy="44" rx="6" ry="4" fill="#e8956d"/><path d="M27 47 Q32 44 37 47" fill="none" stroke="#c1440e" strokeWidth="2" strokeLinecap="round"/><path d="M21 30 Q25 27 29 30" fill="none" stroke="#3d2b1f" strokeWidth="2.5" strokeLinecap="round"/><path d="M35 30 Q39 27 43 30" fill="none" stroke="#3d2b1f" strokeWidth="2.5" strokeLinecap="round"/></svg>),
+    sad: (<svg width={size} height={size} viewBox="0 0 64 64"><ellipse cx="32" cy="40" rx="22" ry="20" fill="#f5c07a"/><ellipse cx="22" cy="22" rx="7" ry="12" fill="#f5c07a"/><ellipse cx="42" cy="22" rx="7" ry="12" fill="#f5c07a"/><ellipse cx="22" cy="18" rx="4" ry="7" fill="#e8956d"/><ellipse cx="42" cy="18" rx="4" ry="7" fill="#e8956d"/><ellipse cx="25" cy="38" rx="4" ry="3.5" fill="#3d2b1f"/><ellipse cx="39" cy="38" rx="4" ry="3.5" fill="#3d2b1f"/><circle cx="26.5" cy="36.5" r="1.5" fill="white"/><circle cx="40.5" cy="36.5" r="1.5" fill="white"/><ellipse cx="32" cy="46" rx="6" ry="4" fill="#e8956d"/><path d="M27 49 Q32 46 37 49" fill="none" stroke="#c1440e" strokeWidth="2" strokeLinecap="round"/><path d="M21 31 Q25 34 29 31" fill="none" stroke="#3d2b1f" strokeWidth="2.5" strokeLinecap="round"/><path d="M35 31 Q39 34 43 31" fill="none" stroke="#3d2b1f" strokeWidth="2.5" strokeLinecap="round"/><ellipse cx="23" cy="42" rx="3" ry="4" fill="#93c5fd" opacity="0.5"/><ellipse cx="41" cy="42" rx="3" ry="4" fill="#93c5fd" opacity="0.5"/></svg>),
+  };
+  return faces[state] || faces.normal;
+}
+const TOASTS = [
+  { id:1, type:"鼓励型", icon:"🔥", title:"连续打卡 5 天！", body:"今天只剩 15 分钟，继续保持！", grad:"linear-gradient(135deg,#34d399,#059669)", tag:"打卡", tagBg:"#D1FAE5", tagColor:"#065F46" },
+  { id:2, type:"紧迫型", icon:"⏰", title:"还有 2 道题没做", body:"距今天结束还有 2 小时，现在还来得及。", grad:"linear-gradient(135deg,#fb923c,#ea580c)", tag:"快截止", tagBg:"#FFEDD5", tagColor:"#9A3412" },
+  { id:3, type:"拟人关怀型", icon:"🦌", title:"小鹿有点担心你…", body:"你已经两天没来了，今天还好吗？", grad:"linear-gradient(135deg,#c084fc,#9333ea)", tag:"想念你", tagBg:"#F3E8FF", tagColor:"#6B21A8" },
+  { id:4, type:"社交压力型", icon:"⚡", title:"小明刚刚超过你了！", body:"你现在排第 9，要反超吗？", grad:"linear-gradient(135deg,#60a5fa,#2563eb)", tag:"排行榜", tagBg:"#DBEAFE", tagColor:"#1E40AF" },
+];
+function ToastItem({ toast, onDismiss }) {
+  const [visible, setVisible] = useState(false);
+  useEffect(() => { setTimeout(() => setVisible(true), 60); }, []);
+  const dismiss = () => { setVisible(false); setTimeout(onDismiss, 340); };
+  return (
+    <div onClick={dismiss} style={{ cursor:"pointer", background:"white", borderRadius:18, overflow:"hidden", boxShadow:"0 12px 40px rgba(0,0,0,0.18)", marginBottom:10, animation: visible ? "toastIn 0.42s cubic-bezier(.34,1.56,.64,1) forwards" : "none", opacity: visible ? 1 : 0 }}>
+      <div style={{ background:toast.grad, padding:"13px 16px", display:"flex", alignItems:"center", gap:10 }}>
+        <span style={{ fontSize:26 }}>{toast.icon}</span>
+        <div style={{ flex:1 }}><div style={{ fontSize:10, color:"rgba(255,255,255,0.75)", fontWeight:700 }}>{toast.type}</div><div style={{ fontSize:15, fontWeight:800, color:"white" }}>{toast.title}</div></div>
+        <span style={{ background:toast.tagBg, color:toast.tagColor, fontSize:11, fontWeight:700, padding:"3px 9px", borderRadius:20 }}>{toast.tag}</span>
+      </div>
+      <div style={{ padding:"11px 16px 13px", display:"flex", alignItems:"center", justifyContent:"space-between" }}>
+        <div style={{ fontSize:13, color:"#6B7280", flex:1, marginRight:12 }}>{toast.body}</div>
+        <div style={{ display:"flex", gap:6 }}>
+          <button onClick={e=>{e.stopPropagation();dismiss();}} style={{ padding:"7px 14px", borderRadius:10, border:"none", background:toast.grad, color:"white", fontWeight:800, fontSize:12, cursor:"pointer" }}>去学习</button>
+          <button onClick={e=>{e.stopPropagation();dismiss();}} style={{ padding:"7px 12px", borderRadius:10, border:"1.5px solid #E5E7EB", background:"white", color:"#9CA3AF", fontSize:11, cursor:"pointer" }}>稍后</button>
+        </div>
+      </div>
+    </div>
+  );
+}
+function ToastLayer({ toasts, onDismiss }) {
+  if (!toasts.length) return null;
+  return (<div style={{ position:"fixed", top:16, left:"50%", transform:"translateX(-50%)", width:"calc(100% - 32px)", maxWidth:388, zIndex:100 }}>{toasts.map(t => <ToastItem key={t.id} toast={t} onDismiss={() => onDismiss(t.id)} />)}</div>);
+}
+function ProgressRing({ pct, size=88 }) {
+  const r = size/2-8, circ = 2*Math.PI*r;
+  return (<svg width={size} height={size} style={{ transform:"rotate(-90deg)" }}><circle cx={size/2} cy={size/2} r={r} fill="none" stroke="rgba(255,255,255,0.3)" strokeWidth={9}/><circle cx={size/2} cy={size/2} r={r} fill="none" stroke="white" strokeWidth={9} strokeDasharray={circ} strokeDashoffset={circ*(1-pct)} strokeLinecap="round" style={{ transition:"stroke-dashoffset 0.7s cubic-bezier(.4,2,.6,1)" }}/></svg>);
+}
+const INIT_BOARD = [
+  { rank:1, name:"小明", avatar:"👦", score:420 },
+  { rank:2, name:"Lisa", avatar:"👧", score:390 },
+  { rank:3, name:"匿名", avatar:"😶", score:350 },
+  { rank:4, name:"你", avatar:"🧑", score:310, isMe:true },
+  { rank:5, name:"阿强", avatar:"🧒", score:280 },
+  { rank:6, name:"匿名", avatar:"😶", score:240 },
+];
+const INIT_TASKS = [
+  { id:1, label:"观看课程视频", done:true, mins:15, icon:"🎬" },
+  { id:2, label:"完成练习题(5题)", done:true, mins:10, icon:"📝" },
+  { id:3, label:"单词记忆训练", done:false, mins:8, icon:"📚" },
+  { id:4, label:"每日测验", done:false, mins:5, icon:"🧠" },
+];
+const FRIENDS = [
+  { name:"小明", avatar:"👦", done:true, streak:7 },
+  { name:"Lisa", avatar:"👧", done:true, streak:3 },
+  { name:"你", avatar:"🧑", done:false, streak:5, isMe:true },
+  { name:"阿强", avatar:"🧒", done:false, streak:1 },
+];
+function App() {
+  const [tab, setTab] = useState("home");
+  const [tasks, setTasks] = useState(INIT_TASKS);
+  const [deerKey, setDeer] = useState("worried");
+  const [toasts, setToasts] = useState([]);
+  const [board, setBoard] = useState(INIT_BOARD);
+  const [flash, setFlash] = useState(false);
+  const [deerAnim, setDeerAnim] = useState("");
+  const toastIdRef = useRef(100);
+  const theme = THEMES[deerKey];
+  const doneCount = tasks.filter(t => t.done).length;
+  const pct = doneCount / tasks.length;
+  const toggleTask = (id) => {
+    const updated = tasks.map(t => t.id===id ? {...t, done:!t.done} : t);
+    setTasks(updated);
+    const n = updated.filter(t=>t.done).length;
+    const next = n===updated.length?"happy":n>=2?"normal":n===1?"worried":"sad";
+    if (next !== deerKey) { setDeerAnim("pop"); setTimeout(()=>setDeerAnim(""),500); }
+    setDeer(next);
+  };
+  const fireToast = (t) => { const id = toastIdRef.current++; setToasts(prev => [...prev, {...t, id}]); };
+  const dismissToast = (id) => setToasts(prev => prev.filter(t => t.id !== id));
+  const triggerOvertake = () => {
+    setFlash(true);
+    setBoard(prev => { const copy = prev.map(u=>({...u})); const me = copy.find(u=>u.isMe); const above = copy.find(u=>u.rank===me.rank-1); if (me && above) above.score = me.score - 15; return copy.sort((a,b)=>b.score-a.score).map((u,i)=>({...u,rank:i+1})); });
+    setTimeout(()=>setFlash(false), 1800);
+    fireToast(TOASTS[3]);
+  };
+  const tabs = [{ id:"home", label:"主页", icon:"🏠" }, { id:"reminders", label:"提醒", icon:"🔔" }, { id:"social", label:"社交", icon:"👥" }];
+  return (
+    <div style={{ background:theme.bg, minHeight:"100vh", maxWidth:420, margin:"0 auto", display:"flex", flexDirection:"column", transition:"background 0.6s ease" }}>
+      <ToastLayer toasts={toasts} onDismiss={dismissToast}/>
+      <div style={{ background:theme.grad, padding:"18px 20px 24px", position:"sticky", top:0, zIndex:20, boxShadow:`0 8px 32px ${theme.accent}44`, transition:"background 0.6s ease", display:"flex", alignItems:"center", justifyContent:"space-between" }}>
+        <div><div style={{ fontSize:10, color:"rgba(255,255,255,0.7)", fontWeight:700, letterSpacing:1.5, marginBottom:2 }}>小鹿爱学</div><div style={{ fontSize:20, fontWeight:900, color:"white" }}>智能提醒系统</div></div>
+        <div style={{ background:"rgba(255,255,255,0.2)", borderRadius:18, padding:"10px 14px", display:"flex", alignItems:"center", gap:10, border:"1.5px solid rgba(255,255,255,0.3)" }}>
+          <div style={{ animation: deerAnim==="pop"?"pop 0.5s ease":deerKey==="happy"?"floatY 1.4s ease infinite":deerKey==="sad"?"droop 2.2s ease infinite":deerKey==="worried"?"shake 0.6s ease infinite":"none" }}><DeerFace state={deerKey} size={52}/></div>
+          <div><div style={{ fontSize:10, color:"rgba(255,255,255,0.7)", fontWeight:600 }}>小鹿状态</div><div style={{ fontSize:13, fontWeight:800, color:"white" }}>{theme.label}</div></div>
+        </div>
+      </div>
+      <div style={{ flex:1, overflowY:"auto", padding:"18px 16px 90px" }}>
+        {tab==="home" && (<div>
+          <div style={{ background:theme.grad, borderRadius:24, padding:22, marginBottom:16, boxShadow:`0 8px 32px ${theme.accent}44`, display:"flex", alignItems:"center", gap:18, animation:"slideUp 0.4s ease", transition:"background 0.6s ease" }}>
+            <div style={{ position:"relative", flexShrink:0 }}><ProgressRing pct={pct}/><div style={{ position:"absolute", inset:0, display:"flex", alignItems:"center", justifyContent:"center", flexDirection:"column" }}><div style={{ fontSize:20, fontWeight:900, color:"white", lineHeight:1 }}>{doneCount}/{tasks.length}</div><div style={{ fontSize:9, color:"rgba(255,255,255,0.8)" }}>完成</div></div></div>
+            <div style={{ flex:1 }}><div style={{ fontSize:17, fontWeight:900, color:"white", marginBottom:5 }}>{pct===1?"🎉 全部完成！":"今日学习进度"}</div><div style={{ fontSize:12, color:"rgba(255,255,255,0.85)", marginBottom:10 }}>{pct===1?"太棒了，今天完美收官":`还剩 ${tasks.length-doneCount} 个任务`}</div><div style={{ display:"flex", gap:6 }}>{["🔥 连续5天","排名 #4"].map(t=>(<span key={t} style={{ background:"rgba(255,255,255,0.25)", color:"white", fontSize:11, fontWeight:700, padding:"3px 10px", borderRadius:20 }}>{t}</span>))}</div></div>
+          </div>
+          <div style={{ background:"white", borderRadius:24, padding:20, marginBottom:16, boxShadow:"0 4px 20px rgba(0,0,0,0.06)", animation:"slideUp 0.4s ease 0.08s both" }}>
+            <div style={{ fontWeight:800, color:"#1E1B4B", fontSize:15, marginBottom:14 }}>今日任务清单</div>
+            {tasks.map(task=>(<div key={task.id} onClick={()=>toggleTask(task.id)} style={{ display:"flex", alignItems:"center", gap:12, padding:"11px 10px", borderRadius:14, marginBottom:6, cursor:"pointer", background:task.done?theme.light:"#F9FAFB", border:`1.5px solid ${task.done?theme.accent+"33":"transparent"}`, transition:"all 0.25s cubic-bezier(.4,2,.6,1)" }}>
+              <div style={{ width:26, height:26, borderRadius:9, flexShrink:0, background:task.done?theme.grad:"white", border:`2.5px solid ${task.done?theme.accent:"#D1D5DB"}`, display:"flex", alignItems:"center", justifyContent:"center", transition:"all 0.25s cubic-bezier(.4,2,.6,1)" }}>{task.done && <span style={{ color:"white", fontSize:13, fontWeight:900 }}>✓</span>}</div>
+              <span style={{ fontSize:20 }}>{task.icon}</span>
+              <div style={{ flex:1, fontSize:14, fontWeight:700, color:task.done?"#9CA3AF":"#1E1B4B", textDecoration:task.done?"line-through":"none", transition:"all 0.2s" }}>{task.label}</div>
+              <span style={{ fontSize:11, color:"#9CA3AF", background:"#F3F4F6", padding:"2px 8px", borderRadius:10 }}>{task.mins}分钟</span>
+            </div>))}
+          </div>
+          <div style={{ background:"white", borderRadius:20, padding:18, boxShadow:"0 4px 20px rgba(0,0,0,0.06)" }}>
+            <div style={{ fontSize:11, color:"#9CA3AF", fontWeight:700, marginBottom:12 }}>演示 · 切换小鹿情绪（模拟App图标变化）</div>
+            <div style={{ display:"flex", gap:8 }}>{Object.entries(THEMES).map(([key,val])=>(<button key={key} onClick={()=>{ setDeerAnim("pop"); setTimeout(()=>setDeerAnim(""),500); setDeer(key); }} style={{ flex:1, padding:"10px 4px", borderRadius:14, border:`2.5px solid ${deerKey===key?val.accent:"#E5E7EB"}`, background:deerKey===key?val.grad:"white", cursor:"pointer", display:"flex", flexDirection:"column", alignItems:"center", gap:4, boxShadow:deerKey===key?`0 4px 12px ${val.accent}44`:"none", transition:"all 0.25s cubic-bezier(.4,2,.6,1)" }}><DeerFace state={key} size={36}/><span style={{ fontSize:10, fontWeight:700, color:deerKey===key?"white":"#9CA3AF" }}>{val.label}</span></button>))}</div>
+          </div>
+        </div>)}
+        {tab==="reminders" && (<div>
+          <div style={{ background:"white", borderRadius:20, padding:18, marginBottom:14, boxShadow:"0 4px 20px rgba(0,0,0,0.06)", animation:"slideUp 0.3s ease" }}>
+            <div style={{ fontWeight:800, color:"#1E1B4B", fontSize:15, marginBottom:6 }}>触发通知演示</div>
+            <div style={{ fontSize:12, color:"#9CA3AF", marginBottom:14 }}>点击下方按钮，体验不同情绪的提醒从顶部弹出</div>
+            <div style={{ display:"flex", flexDirection:"column", gap:8 }}>{TOASTS.map(t=>(<button key={t.id} onClick={()=>fireToast(t)} style={{ padding:"12px 16px", borderRadius:14, border:"none", background:t.grad, color:"white", fontWeight:800, fontSize:13, cursor:"pointer", textAlign:"left", display:"flex", alignItems:"center", gap:10, boxShadow:"0 4px 14px rgba(0,0,0,0.13)" }}><span style={{ fontSize:22 }}>{t.icon}</span><div><div style={{ fontSize:10, opacity:0.8, marginBottom:1 }}>{t.type}</div><div>{t.title}</div></div></button>))}</div>
+          </div>
+          <div style={{ fontSize:12, color:"#9CA3AF", textAlign:"center" }}>点击通知本身可关闭</div>
+        </div>)}
+        {tab==="social" && (<div>
+          <div style={{ background:"white", borderRadius:24, padding:20, marginBottom:16, boxShadow:"0 4px 20px rgba(0,0,0,0.06)", animation:"slideUp 0.35s ease" }}>
+            <div style={{ fontWeight:800, color:"#1E1B4B", fontSize:15, marginBottom:14 }}>好友今日动态</div>
+            {FRIENDS.map(f=>(<div key={f.name} style={{ display:"flex", alignItems:"center", gap:12, padding:"11px 10px", borderRadius:14, marginBottom:6, background:f.isMe?theme.light:"#F9FAFB", border:`1.5px solid ${f.isMe?theme.accent+"44":"transparent"}`, transition:"background 0.5s ease" }}>
+              <div style={{ width:44, height:44, borderRadius:16, background:f.done?"linear-gradient(135deg,#34d399,#059669)":"linear-gradient(135deg,#f87171,#dc2626)", display:"flex", alignItems:"center", justifyContent:"center", fontSize:22 }}>{f.avatar}</div>
+              <div style={{ flex:1 }}><div style={{ fontSize:14, fontWeight:700, color:"#1E1B4B" }}>{f.name}{f.isMe&&<span style={{ fontSize:11, color:theme.accent, marginLeft:6 }}>（你）</span>}</div><div style={{ fontSize:11, color:"#9CA3AF" }}>🔥 连续 {f.streak} 天打卡</div></div>
+              <span style={{ fontSize:12, fontWeight:800, padding:"5px 12px", borderRadius:20, background:f.done?"linear-gradient(135deg,#34d399,#059669)":"linear-gradient(135deg,#f87171,#dc2626)", color:"white" }}>{f.done?"✓ 完成":"未完成"}</span>
+            </div>))}
+          </div>
+          <div style={{ background:"white", borderRadius:24, padding:20, boxShadow:"0 4px 20px rgba(0,0,0,0.06)" }}>
+            <div style={{ display:"flex", alignItems:"center", justifyContent:"space-between", marginBottom:16 }}><div style={{ fontWeight:800, color:"#1E1B4B", fontSize:15 }}>本周排行榜</div><span style={{ fontSize:11, fontWeight:700, color:"#9CA3AF", background:"#F3F4F6", padding:"3px 10px", borderRadius:10 }}>周一重置</span></div>
+            {board.map(u=>(<div key={u.name} style={{ display:"flex", alignItems:"center", gap:10, padding:"11px 12px", borderRadius:14, marginBottom:6, background:flash&&u.isMe?"#FEF2F2":u.isMe?theme.light:"#F9FAFB", border:`1.5px solid ${flash&&u.isMe?"#EF444466":u.isMe?theme.accent+"44":"transparent"}`, transition:"background 0.4s ease" }}>
+              <div style={{ width:28, textAlign:"center", fontSize:13, fontWeight:800, color:flash&&u.isMe?"#EF4444":"#9CA3AF" }}>{flash&&u.isMe?"↓":`#${u.rank}`}</div>
+              <div style={{ fontSize:22 }}>{u.avatar}</div>
+              <div style={{ flex:1, fontSize:14, fontWeight:700, color:"#1E1B4B" }}>{u.name}{u.isMe&&<span style={{ fontSize:11, color:flash?"#EF4444":theme.accent, marginLeft:6 }}>（你）</span>}</div>
+              <div style={{ textAlign:"right" }}><div style={{ fontSize:14, fontWeight:800, color:flash&&u.isMe?"#EF4444":u.isMe?theme.accent:"#374151" }}>{u.score}分</div><div style={{ width:60, height:4, background:"#F3F4F6", borderRadius:4, marginTop:3 }}><div style={{ width:`${u.score/420*100}%`, height:"100%", background:u.isMe?theme.grad:"linear-gradient(90deg,#94a3b8,#64748b)", borderRadius:4 }}/></div></div>
+            </div>))}
+            <button onClick={triggerOvertake} style={{ width:"100%", marginTop:14, padding:"13px 0", borderRadius:16, border:"none", background:"linear-gradient(135deg,#f87171,#dc2626)", color:"white", fontWeight:800, fontSize:14, cursor:"pointer", display:"flex", alignItems:"center", justifyContent:"center", gap:8 }}><span style={{ fontSize:18 }}>⚡</span> 模拟被人超越</button>
+            <div style={{ marginTop:10, padding:"12px 16px", borderRadius:16, background:theme.grad, transition:"background 0.6s ease" }}><div style={{ fontSize:13, fontWeight:800, color:"white" }}>⚡ 你距第3名只差 40 分</div><div style={{ fontSize:11, color:"rgba(255,255,255,0.85)", marginTop:3 }}>今天再完成 2 个任务就能超过！</div></div>
+          </div>
+        </div>)}
+      </div>
+      <div style={{ position:"fixed", bottom:0, left:"50%", transform:"translateX(-50%)", width:"100%", maxWidth:420, background:"rgba(255,255,255,0.92)", borderTop:"1px solid rgba(0,0,0,0.06)", display:"flex", padding:"10px 0 18px" }}>
+        {tabs.map(t=>(<button key={t.id} onClick={()=>setTab(t.id)} style={{ flex:1, background:"none", border:"none", cursor:"pointer", display:"flex", flexDirection:"column", alignItems:"center", gap:3, padding:"4px 0" }}>
+          <div style={{ width:44, height:36, borderRadius:14, background:tab===t.id?theme.light:"transparent", display:"flex", alignItems:"center", justifyContent:"center", fontSize:20, transition:"all 0.25s ease" }}>{t.icon}</div>
+          <span style={{ fontSize:11, fontWeight:tab===t.id?800:600, color:tab===t.id?theme.accent:"#9CA3AF" }}>{t.label}</span>
+        </button>))}
+      </div>
+    </div>
+  );
+}
+ReactDOM.createRoot(document.getElementById("root")).render(<App/>);
+</script>
+</body>
+</html>
